@@ -23,6 +23,22 @@ public class InmuebleRepository : IInmuebleRepository
     {
         var usario = await _userManager.FindByNameAsync(_usuarioSesion.ObtenerUsuarioSesion());
 
+        if (usario is null)
+        {
+            throw new MiddleException(
+                HttpStatusCode.Unauthorized,
+                new { mensaje = "El usuario no es valido" }
+            );
+        }
+
+        if (Inmueble is null)
+        {
+            throw new MiddleException(
+                HttpStatusCode.BadRequest,
+                new { mensaje = "Los datos del inmueble son incorrectos" }
+            );
+        }
+
         Inmueble.FechaCreacion = DateTime.Now;
         Inmueble.UsuarioId = Guid.Parse(usario!.Id);
 

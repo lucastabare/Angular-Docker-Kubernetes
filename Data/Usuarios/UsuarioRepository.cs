@@ -44,6 +44,13 @@ public class UsuarioRepository : IUsuarioRepository
     public async Task<UsuarioResponseDto> GetUsuario()
     {
         var usuario = await _userManager.FindByNameAsync(_usuarioSeison.ObtenerUsuarioSesion());
+
+        if (usuario is null)
+        {
+            throw new MiddleException(HttpStatusCode.Unauthorized,
+            new { mensaje = "El Usuario del token no existe en la base de datos" })
+        }
+
         return TransformUserToUserDto(usuario!);
 
     }
@@ -52,13 +59,44 @@ public class UsuarioRepository : IUsuarioRepository
     {
         var usuario = await _userManager.FindByEmailAsync(request.Email!);
 
-        await _sigInManager.CheckPasswordSignInAsync(usuario!, request.Password!, false);
+        if (usuario is null)
+        {
+            throw new MiddleException(HttpStatusCode.Unauthorized,
+            new { mensaje = "El email del usuario no existe en la base de datos" })
+        }
 
-        return TransformUserToUserDto(usuario!);
+        var resultado = await _sigInManager.CheckPasswordSignInAsync(usuario!, request.Password!, false);
+
+        if (resultado.Succeeded)
+        {
+            return TransformUserToUserDto(usuario);
+        }
+
+        throw new MiddleException(
+            HttpStatusCode.Unauthorized,
+        new { mensaje = "Las credenciales son incorrectas" })
     }
 
     public async Task<UsuarioResponseDto> RegistroUsuario(UsuarioRegistroRquestDto request)
     {
+        var existeEmail = await _contexto.Users.Where(c => c.Email == request.Email).AnyAsync();
+
+        if (existeEmail)
+        {
+            throw new MiddleException(
+           HttpStatusCode.BadRequest,
+           new { mensaje = "El email del usuario ya existe" })
+        }
+
+        var existeUserName = await _contexto.Users.Where(c => c.UserName == request.UserName).AnyAsync();
+
+        if (existeUserName)
+        {
+            throw new MiddleException(
+           HttpStatusCode.BadRequest,
+           new { mensaje = "El usuario ya existe" })
+        }
+
         var usuario = new Usuario
         {
             Nombre = request.Nombre,
@@ -68,8 +106,14 @@ public class UsuarioRepository : IUsuarioRepository
             UserName = request.UserName,
         };
 
-        await _userManager.CreateAsync(usuario!, request.Password!);
+        var resultado = await _userManager.CreateAsync(usuario!, request.Password!);
 
-        return TransformUserToUserDto(usuario);
+        if (resultado.Succeeded)
+        {
+            return TransformUserToUserDto(usuario);
+        }
+
+        throw new Exception("No se pudo registrar el usuario")
+
     }
 }
